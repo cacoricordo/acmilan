@@ -1,9 +1,9 @@
-// ===== ⚽ Tactical Squad Scout 4.2.3 - LiveSync Final =====
+// server.js — AI Tática v12.1.2 (Render + Realtime WebSocket)
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
-import fetch from "node-fetch";
 import dotenv from "dotenv";
+import fetch from "node-fetch";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer } from "http";
@@ -11,94 +11,855 @@ import { Server } from "socket.io";
 
 dotenv.config();
 
-// === Configura servidor HTTP e WebSocket ===
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: ["https://www.osinvictos.com.br", "https://osinvictos.com.br"],
+    origin: [
+      "https://www.osinvictos.com.br",
+      "https://osinvictos.com.br",
+      "https://acmilan-5qt5.onrender.com",
+      "*"
+    ],
     methods: ["GET", "POST"]
   }
 });
 
-// === Caminhos absolutos ===
+// === Configuração de diretórios ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// === Middleware e rotas estáticas ===
+// === Middleware ===
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(__dirname));
 
-// === Rota padrão ===
+// === Serve o frontend ===
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// === Buffer global de paths (memória volátil) ===
-const MAX_STORED_PATHS = 200;
-const recentPaths = []; // { id, path, color, ts }
+// === Constantes ===
+const FIELD_WIDTH = 600;
+const FIELD_HEIGHT = 300;
 
+const FORMATIONS = {
+  // =========================
+  // 4-4-2
+  // =========================
+"4-4-2": [
+  // ====== DEFESA (4) ======
+  // Lateral direito
+  { id: 13, role: "lateral direito", prefferedZone:[500,  60] },
+
+  // Zagueiro direito
+  { id: 14,  role: "zagueiro central", prefferedZone:[500, 120] },
+
+  // Zagueiro esquerdo
+  { id: 15, role: "quarto zagueiro", prefferedZone:[500, 180] },
+
+  // Lateral esquerdo
+  { id: 18, role: "lateral esquerdo", prefferedZone:[500, 240] },
+
+  // ====== MEIO CAMPO (4) ======
+  // Meia direita (ponta / corredor)
+  { id: 20, role: "meia direita", prefferedZone:[380,  90] },
+
+  // Volante direito / meia central
+  { id: 16, role: "volante direito", prefferedZone:[410, 150] },
+
+  // Volante esquerdo / meia central
+  { id: 17, role: "volante esquerdo", prefferedZone:[380, 150] },
+
+  // Meia esquerda (ponta)
+  { id: 21, role: "meia esquerda", prefferedZone:[380, 210] },
+
+  // ====== ATAQUE (2) ======
+  // Segundo atacante (mais móvel, flutua)
+  { id: 19, role: "segundo atacante", prefferedZone:[300, 120] },
+
+  // Centroavante (referência)
+  { id: 22, role: "centroavante", prefferedZone:[270, 180] }
+],
+
+  // =========================
+  // 4-3-3
+  // =========================
+"4-3-3": [
+  // ====== DEFESA (4) ======
+  // Lateral direito
+  { id: 13, role: "lateral direito", prefferedZone:[500,  60] },
+
+  // Zagueiro direito
+  { id: 14, role: "zagueiro direito", prefferedZone:[500, 120] },
+
+  // Zagueiro esquerdo
+  { id: 15, role: "zagueiro esquerdo", prefferedZone:[500, 180] },
+
+  // Lateral esquerdo
+  { id: 18, role: "lateral esquerdo", prefferedZone:[500, 240] },
+
+  // ====== MEIO CAMPO (3) ======
+  // 1º volante — central, equilibra a saída
+  { id: 16, role: "primeiro volante", prefferedZone:[430, 150] },
+
+  // Meia interior direita — apoia construção
+  { id: 20, role: "meia interior direita", prefferedZone:[390, 110] },
+
+  // Meia interior esquerda — conecta com o ataque
+  { id: 17, role: "meia interior esquerda", prefferedZone:[390, 190] },
+
+  // ====== ATAQUE (3) ======
+  // Ponta direita (velocidade / profundidade)
+  { id: 19, role: "ponta direita", prefferedZone:[300,  80] },
+
+  // Centroavante (referência)
+  { id: 22, role: "centroavante", prefferedZone:[270, 150] },
+
+  // Ponta esquerda (diagonal para dentro)
+  { id: 21, role: "ponta esquerda", prefferedZone:[300, 220] }
+]
+,
+
+  // =========================
+  // 4-2-3-1
+  // =========================
+"4-2-3-1": [
+  // ====== DEFESA (4) ======
+  // Lateral direito
+  { id: 13, role: "lateral direito", prefferedZone:[500,  60] },
+
+  // Zagueiro direito
+  { id: 14, role: "zagueiro direito", prefferedZone:[500, 120] },
+
+  // Zagueiro esquerdo
+  { id: 15, role: "zagueiro esquerdo", prefferedZone:[500, 180] },
+
+  // Lateral esquerdo
+  { id: 18, role: "lateral esquerdo", prefferedZone:[500, 240] },
+
+  // ====== VOLANTES (2) ======
+  // 1º volante — protege a zaga
+  { id: 16, role: "primeiroo volante", prefferedZone:[430, 150] },
+
+  // 2º volante — transição e condução
+  { id: 17, role: "segundo volante", prefferedZone:[400, 150] },
+
+  // ====== MEIAS (3) ======
+  // Meia direita (ponta / corredor)
+  { id: 20, role: "meia direita", prefferedZone:[330,  90] },
+
+  // Meia central (camisa 10 — entrelinhas)
+  { id: 19, role: "meia central", prefferedZone:[330, 150] },
+
+  // Meia esquerda (ponta esquerda)
+  { id: 21, role: "meia esquerda", prefferedZone:[330, 210] },
+
+  // ====== ATAQUE (1) ======
+  // Centroavante isolado (referência)
+  { id: 22, role: "centroavante isolado", prefferedZone:[260, 150] }
+],
+
+"4-2-4": [
+  // ====== DEFESA (4) ======
+  // Lateral direito
+  { id: 13, role: "lateral direito", prefferedZone:[500,  60] },
+
+  // Zagueiro direito
+  { id: 14, role: "zagueiro direito", prefferedZone:[500, 120] },
+
+  // Zagueiro esquerdo
+  { id: 15, role: "zagueiro esquerdo", prefferedZone:[500, 180] },
+
+  // Lateral esquerdo
+  { id: 18, role: "lateral esquerdo", prefferedZone:[500, 240] },
+
+  // ====== VOLANTES (2) ======
+  // Volante defensivo — protege a zaga
+  { id: 16, role: "volante defensivo", prefferedZone:[420, 140] },
+
+  // Volante construtor — faz saída e ligação
+  { id: 17, role: "volante construtor", prefferedZone:[420, 180] },
+
+  // ====== ATAQUE (4) ======
+  // Extremo direito
+  { id: 20, role: "extremo direito", prefferedZone:[300,  80] },
+
+  // Segundo atacante — meia-atacante / falso 9
+  { id: 19, role: "segundo atacante", prefferedZone:[300, 130] },
+
+  // Centroavante (referência)
+  { id: 22, role: "centroavante", prefferedZone:[270, 170] },
+
+  // Extremo esquerdo
+  { id: 21, role: "extremo esquerdo", prefferedZone:[300, 220] }
+],
+
+  // =========================
+  // 3-5-2
+  // =========================
+"3-5-2": [
+  // ====== DEFESA — 3 ZAGUEIROS ======
+  // Zagueiro direito
+  { id: 13, role: "zagueiro direito", prefferedZone:[500, 100] },
+
+  // Zagueiro central
+  { id: 14, role: "zagueiro central", prefferedZone:[500, 150] },
+
+  // Zagueiro esquerdo
+  { id: 15, role: "zagueiro esquerdo", prefferedZone:[500, 200] },
+
+  // ====== MEIO CAMPO — 5 JOGADORES ======
+  // Ala direita (camisa 7 ou 2 dependendo do modelo)
+  { id: 20, role: "ala direita", prefferedZone:[400,  70] },
+
+  // Volante (1º volante — proteção da zaga)
+  { id: 16, role: "primeiro volante", prefferedZone:[420, 150] },
+
+  // Meia central (camisa 10 — criação)
+  { id: 19, role: "meia central", prefferedZone:[380, 150] },
+
+  // Volante interno (2º volante — equilíbrio)
+  { id: 17, role: "segundo volante", prefferedZone:[420, 200] },
+
+  // Ala esquerda
+  { id: 18, role: "ala esquerda", prefferedZone:[400, 230] },
+
+  // ====== ATAQUE — DUPLA DE FRENTE ======
+  // 2º atacante (mais móvel)
+  { id: 21, role: "segundo atacante", prefferedZone:[300, 130] },
+
+  // Centroavante (referência)
+  { id: 22, role: "centroavante", prefferedZone:[260, 170] }
+]
+,
+
+  // =========================
+  // 5-4-1
+  // =========================
+"5-4-1": [
+  // ====== DEFESA — LINHA DE 5 ======
+  // Ala / Lateral direito (camisa 2)
+  { id: 13, role: "ala lateral direito", prefferedZone:[500,  60] },
+
+  // Zagueiro direito (camisa 3)
+  { id: 14, role: "zagueiro direito", prefferedZone:[500, 120] },
+
+  // Zagueiro central (camisa 4)
+  { id: 15, role: "zagueiro central", prefferedZone:[500, 150] },
+
+  // Zagueiro esquerdo (camisa 5 / volante recuado)
+  { id: 16, role: "zagueiro esquerdo", prefferedZone:[500, 180] },
+
+  // Ala / Lateral esquerdo (camisa 6 ou 8)
+  { id: 17, role: "lateral esquerdo", prefferedZone:[500, 240] },
+
+  // ====== MEIO CAMPO — LINHA DE 4 ======
+  // Meia direita (ponta / corredor)
+  { id: 20, role: "meia direita", prefferedZone:[370,  90] },
+
+  // Volante interior (camisa 10)
+  { id: 19, role: "volante interior", prefferedZone:[370, 140] },
+
+  // Volante interior (camisa 8)
+  { id: 21, role: "Volante interior", prefferedZone:[370, 190] },
+
+  // Meia esquerda (ponta)
+  { id: 18, role: "meia esquerda", prefferedZone:[370, 240] },
+
+  // ====== ATAQUE — 1 ISOLADO ======
+  // Centroavante (camisa 9)
+  { id: 22, role: "centroavante", prefferedZone:[250, 150] }
+],
+
+"4-5-1": [
+  // ====== DEFESA (4) ======
+  // Lateral direito (camisa 2)
+  { id: 13, role: "lateral direito", prefferedZone:[480,  60] },
+
+  // Zagueiro direito (camisa 3)
+  { id: 14, role: "zagueiro direito", prefferedZone:[480, 120] },
+
+  // Zagueiro esquerdo (camisa 4)
+  { id: 15, role: "zagueiro esquerdo", prefferedZone:[480, 180] },
+
+  // Lateral esquerdo (camisa 6 / ala esquerda)
+  { id: 18, role: "lateral esquerdo", prefferedZone:[480, 240] },
+
+  // ====== MEIO CAMPO (5) ======
+  // 1º volante (camisa 5) — protege a defesa
+  { id: 16, role: "primeiro volante", prefferedZone:[420, 150] },
+
+  // 2º volante (camisa 8) — transição e cobertura
+  { id: 17, role: "segundo volante", prefferedZone:[390, 150] },
+
+  // Meia direita (ponta / corredor)
+  { id: 20, role: "meia direita", prefferedZone:[330,  90] },
+
+  // Meia central (camisa 10 — armador)
+  { id: 19, role: "meia central", prefferedZone:[330, 150] },
+
+  // Meia esquerda (ponta esquerda / corredor)
+  { id: 21, role: "meia esquerda", prefferedZone:[330, 210] },
+
+  // ====== ATAQUE (1) ======
+  // Centroavante (referência)
+  { id: 22, role: "lateral direito", prefferedZone:[260, 150] }
+],
+
+"3-4-3": [
+  // ====== DEFESA — 3 ZAGUEIROS ======
+  // Zagueiro direito
+  { id: 14, role: "zagueiro direito", prefferedZone:[520, 110] },
+
+  // Zagueiro central
+  { id: 15, role: "zegueiro central", prefferedZone:[520, 150] },
+
+  // Zagueiro esquerdo
+  { id: 16, role: "zagueiro esquerdo", prefferedZone:[520, 190] },
+
+  // ====== MEIO — 4 (2 alas + 2 meias) ======
+  // Ala direito (profundidade e amplitude)
+  { id: 13, role: "ala direito", prefferedZone:[440,  70] },
+
+  // Meia interior direita
+  { id: 17, role: "meia interior direita", prefferedZone:[430, 130] },
+
+  // Meia interior esquerda (camisa 10 / criação)
+  { id: 19, role: "meia interior esquerda", prefferedZone:[430, 170] },
+
+  // Ala esquerdo (profundidade e amplitude)
+  { id: 18, role: "ala esquerdo", prefferedZone:[440, 230] },
+
+  // ====== ATAQUE — TRIO ======
+  // Extremo direito (ponta)
+  { id: 20, role: "extremo direito", prefferedZone:[310,  90] },
+
+  // Centroavante (referência)
+  { id: 22, role: "centroavante", prefferedZone:[270, 150] },
+
+  // Extremo esquerdo (ponta)
+  { id: 21, role: "extremo esquerdo", prefferedZone:[310, 210] }
+],
+
+  // =========================
+  // 5-3-2
+  // =========================
+"5-3-2": [
+  // ====== DEFESA — LINHA DE 5 ======
+  // Ala / Lateral direito
+  { id: 13, role: "lateral direito", prefferedZone:[520,  70] },
+
+  // Zagueiro direito
+  { id: 14, role: "zagueiro direito", prefferedZone:[520, 120] },
+
+  // Zagueiro central
+  { id: 15, role: "zagueiro central", prefferedZone:[520, 150] },
+
+  // Zagueiro esquerdo
+  { id: 16, role: "zagueiro esquerdo", prefferedZone:[520, 180] },
+
+  // Ala / Lateral esquerdo
+  { id: 17, role: "lateral esquerdo", prefferedZone:[520, 230] },
+
+  // ====== MEIO — TRIO CENTRAL ======
+  // Meia interior direita
+  { id: 20, role: "meia interior direita", prefferedZone:[400, 120] },
+
+  // Meia central (camisa 10 — cria)
+  { id: 19, role: "meia central", prefferedZone:[400, 150] },
+
+  // Meia interior esquerda
+  { id: 18, role: "meia interior esquerda", prefferedZone:[400, 180] },
+
+  // ====== ATAQUE — DUPLA ======
+  // Segundo atacante (movimenta, tabela)
+  { id: 21, role: "segundo atacante", prefferedZone:[300, 130] },
+
+  // Centroavante (referência)
+  { id: 22, role: "centroavante", prefferedZone:[260, 170] }
+]
+};
+
+
+// === IA: Detector geométrico FIFA 2D ===
+function detectOpponentFormationAdvanced(players) {
+  if (!players || players.length < 8) return "4-2";
+
+  const sortedByX = [...players].sort((a,b) => a.left - b.left);
+  const noGK = sortedByX.slice(1); // drop leftmost
+
+ const sorted = [...noGK].sort((a, b) => a.top - b.top);
+  const lines = [];
+  for (const p of sorted) {
+    let line = lines.find(l => Math.abs(l.centerY - p.top) <= 50); // tolerância ligeiramente maior
+    if (line) {
+      line.players.push(p);
+      line.centerY = (line.centerY * (line.players.length - 1) + p.top) / line.players.length;
+    } else {
+      lines.push({ players: [p], centerY: p.top });
+    }
+  }
+
+  lines.sort((a, b) => a.centerY - b.centerY);
+  const counts = lines.map(l => l.players.length);
+  const signature = counts.join("-");
+
+  // Mapeia assinaturas comuns (sem GK)
+  if (["4-4-2","4-3-3","4-2-3-1","4-2-4","3-5-2","5-4-1","4-5-1","3-4-3", "5-3-2"].includes(signature)) return signature;
+
+  // Fallback por terços (sem GK) — menos enviesado
+  const FIELD_THIRD = 600 / 3; // mantém coerente com seu FIELD_WIDTH
+  const def = noGK.filter(p => p.left < FIELD_THIRD).length;
+  const mid = noGK.filter(p => p.left >= FIELD_THIRD && p.left < FIELD_THIRD * 2).length;
+  const att = noGK.filter(p => p.left >= FIELD_THIRD * 2).length;
+  const shape = `${def}-${mid}-${att}`;
+
+  if (def >= 5 && att <= 1) return "5-4-1";
+  if (def === 4 && mid === 4 && att === 2) return "4-4-2";
+  if (def === 4 && mid === 3 && att === 3) return "4-3-3";
+  if (def === 4 && mid === 2 && att === 4) return "4-2-4";
+  if (def === 3 && mid === 5 && att === 2) return "3-5-2";
+  if (def === 4 && mid === 5 && att === 1) return "4-2-3-1";
+  if (def === 5 && mid === 3 && att === 2) return "5-3-2";
+  if (def === 4 && mid === 2 && att === 4) return "4-2-4";
+  if (def === 3 && mid === 4 && att === 3) return "3-4-3";
+  if (def === 5 && mid === 3 && att === 2) return "5-3-2";
+  if (def === 4 && mid === 5 && att === 1) return "4-5-1";
+
+  // Último fallback neutro (melhor que fixar 4-4-2)
+  return "4-2-3-1";
+}
+
+// === Fase / Bloco / Compactação ===
+function detectPhase(possession, opponentFormation) {
+  if (possession === "verde") return { phase: "Ataque", bloco: "Alto", compactacao: "Larga" };
+  if (["5-4-1", "4-5-1"].includes(opponentFormation)) return { phase: "Defesa", bloco: "Baixo", compactacao: "Curta" };
+  if (["4-4-2", "4-3-3"].includes(opponentFormation)) return { phase: "Transição", bloco: "Médio", compactacao: "Média" };
+  return { phase: "Defesa", bloco: "Baixo", compactacao: "Curta" };
+}
+
+// === Contra-formação ===
+function chooseCounterFormation(opponentFormation, possession) {
+  if (possession === "verde") {
+    switch (opponentFormation) {
+      case "5-4-1": case "5-3-2": return "4-2-3-1";
+      case "4-4-2": return "4-3-3";
+      case "3-5-2": return "4-2-3-1";
+      case "3-4-3": return "4-2-4";
+      default: return "4-3-3";
+    }
+  } else {
+    switch (opponentFormation) {
+      case "4-3-3": return "4-5-1";
+      case "4-2-3-1": return "4-4-2";
+      case "3-5-2": return "5-4-1";
+      case "3-4-3": return "5-3-2";
+      default: return "4-4-2";
+    }
+  }
+}
+
+// === Monta o Verde (direita → esquerda) ===
+function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
+  const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
+  const greenAI = [];
+  let offsetX = 0;
+  switch (formationKey) {
+    case "5-4-1": offsetX = 40; break;
+    case "4-5-1": offsetX = 20; break;
+    case "4-2-4": offsetX = 100; break;
+    case "3-5-2": offsetX = 60; break;
+  }
+
+  for (const pos of formation) {
+    const jitter = Math.random() * 4 - 2;
+    let baseX = phase === "ataque"
+      ? pos.prefferedZone[0] - offsetX
+      : pos.prefferedZone[0] + offsetX;
+    baseX = Math.max(20, Math.min(FIELD_WIDTH - 20, baseX));
+    greenAI.push({ id: pos.id, left: baseX, top: pos.prefferedZone[1] + jitter });
+  }
+
+    greenAI.push({
+      id: 23,
+      left: FIELD_WIDTH - 30,     // fixo no gol direito
+      top: FIELD_HEIGHT / 2       // apenas desce/sobe pela IA Vision
+    });
+
+  return { greenAI };
+}
+
+// ---------------------------------------------------------------
+// === CLASSIFICAÇÃO TÁTICA POR TERÇOS DO CAMPO (DEF / MID / ATT)
+// ---------------------------------------------------------------
+function classifyByThird(players){
+  const DEF_LIMIT = FIELD_WIDTH / 3;       // 1º terço (defesa)
+  const MID_LIMIT = (FIELD_WIDTH / 3) * 2; // 2º terço (meio)
+
+  let def = 0, mid = 0, att = 0;
+
+  for (const p of players) {
+    if (p.left < DEF_LIMIT) def++;
+    else if (p.left < MID_LIMIT) mid++;
+    else att++;
+  }
+
+  return { def, mid, att };
+}
+
+
+// ---------------------------------------------------------------
+// === DEDUÇÃO DA FORMAÇÃO com base na distribuição numérica
+// ---------------------------------------------------------------
+function detectFormationByThirds(def, mid, att){
+  if (def === 4 && mid === 4 && att === 2) return "4-4-2";
+  if (def === 4 && mid === 3 && att === 3) return "4-3-3";
+  if (def === 4 && mid === 2 && att === 3) return "4-2-3-1";
+  if (def === 3 && mid === 5 && att === 2) return "3-5-2";
+  if (def === 3 && mid === 4 && att === 3) return "3-4-3";
+  if (def === 5 && mid === 4 && att === 1) return "5-4-1";
+  if (def === 5 && mid === 3 && att === 2) return "5-3-2";
+  if (def === 4 && mid === 2 && att === 4) return "4-2-4";
+  if (def === 4 && mid === 5 && att === 1) return "4-5-1";
+
+  return "UNKNOWN";
+}
+
+
+    // --- DETECTA PRESSÃO NA ÁREA DEFENSIVA ---
+    function emergencyBlockIfUnderPressure(ball, blackPlayers) {
+    // Verde defende À DIREITA do campo
+    const AREA_GOLEIRO_X = FIELD_WIDTH - 90;  // ~ Grande Área (ajuste fino se quiser)
+
+    // Se a bola estiver dentro dessa área
+    const ballInArea = ball.left >= AREA_GOLEIRO_X;
+
+    // Algum adversário colidindo / muito próximo da bola?
+    const blackClose = blackPlayers.some(p => {
+      return Math.hypot(p.left - ball.left, p.top - ball.top) < 35; // colisão / pressão
+    });
+
+    if (!ballInArea || !blackClose) return null;
+
+    console.log("🚨 Pressão na área detectada! Palmeiras fecha duas linhas de 3.");
+
+    // --- Monta duas linhas de 3 dentro da área ---
+    const LINE_X = FIELD_WIDTH - 45; // quase em cima do goleiro
+
+    const emergency = [
+    // Linha 1 (mais à frente)
+    { id: 16, left: LINE_X - 15, top: FIELD_HEIGHT / 2 - 45 },
+    { id: 14, left: LINE_X - 15, top: FIELD_HEIGHT / 2 },
+    { id: 15, left: LINE_X - 15, top: FIELD_HEIGHT / 2 + 45 },
+
+    // Linha 2 (mais próxima do goleiro)
+    { id: 13, left: LINE_X, top: FIELD_HEIGHT / 2 - 45 },
+    { id: 18, left: LINE_X, top: FIELD_HEIGHT / 2 },
+    { id: 17, left: LINE_X, top: FIELD_HEIGHT / 2 + 45 },
+
+    // Goleiro parado na linha central
+    { id: 23, left: FIELD_WIDTH - 30, top: FIELD_HEIGHT / 2 }
+  ];
+
+  return emergency;
+}
+
+// === Fala do Treinador ===
+let lastFormation = "";
+let lastPhase = "";
+function abelSpeech(opponentFormation, detectedFormation, phase, bloco, compactacao) {
+  const intro = ["Repara comigo:", "É claro o que está acontecendo:", "Eles mudaram o jogo:", "A gente sabe como reagir:"];
+  const corpo = [`Eles estão num ${opponentFormation}, e nós estamos num ${detectedFormation}.`, `Adaptamos pro ${detectedFormation} contra o ${opponentFormation}.`];
+  const contexto = [`Fase ${phase.toLowerCase()}, bloco ${bloco.toLowerCase()}, compactação ${compactacao.toLowerCase()}.`];
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  return `${pick(intro)} ${pick(corpo)} ${pick(contexto)}`;
+}
+
+// === Endpoint IA ===
+app.post("/ai/analyze", async (req, res) => {
+  try {
+    const { green = [], black = [], ball = {}, possession = "preto" } = req.body;
+    const opponentFormation = (req.body.opponentFormationVision && req.body.opponentFormationVision !== "null")
+    ? req.body.opponentFormationVision
+    : detectOpponentFormationAdvanced(black);
+    let detectedFormation = chooseCounterFormation(opponentFormation, possession);
+
+    // ==== NOVO: se o Palmeiras já tem jogadores no campo, deduz via terços ====
+    if (green && green.length > 0){
+      const { def, mid, att } = classifyByThird(green);
+      const viaThirds = detectFormationByThirds(def, mid, att);
+      if (viaThirds !== "UNKNOWN") detectedFormation = viaThirds;
+    }
+
+
+    // ✅ prioridade: comando manual vindo do chat
+    if (req.body.manualFormation){
+       detectedFormation = req.body.manualFormation;
+    }
+
+    const { greenAI } = buildGreenFromFormation(detectedFormation, ball, possession === "verde" ? "ataque" : "defesa");
+    const { phase, bloco, compactacao } = detectPhase(possession, opponentFormation);
+
+    let coachComment = "";
+    if (opponentFormation !== lastFormation || phase !== lastPhase) {
+      coachComment = abelSpeech(opponentFormation, detectedFormation, phase, bloco, compactacao);
+      lastFormation = opponentFormation;
+      lastPhase = phase;
+    }
+    // ✅ Checa defesa de emergência
+    const emergency = emergencyBlockIfUnderPressure(ball, black);
+    if (emergency) {
+      return res.json({
+        opponentFormation,
+        detectedFormation,
+        phase: "defesa",
+        bloco: "BAIXO",
+        compactacao: "ULTRA",
+        green: emergency,
+        coachComment: "Calma! Fechamos duas linhas de três dentro da área!"
+        });
+      }
+
+    res.json({ opponentFormation, detectedFormation, phase, bloco, compactacao, coachComment, green: greenAI });
+  } catch (err) {
+    console.error("Erro /ai/analyze", err);
+    res.status(500).json({ error: "Erro interno IA", details: err.message });
+  }
+});
+
+// === IA VISUAL + AÇÃO TÁTICA REAL ===
+app.post("/ai/vision-tactic", async (req, res) => {
+  try {
+    const { fieldImage, possession, ball, green, black } = req.body;
+    // ✅ Formações permitidas (Palmeiras e adversário)
+    const allowedFormations = [
+      "4-4-2", "4-3-3", "4-2-3-1", "4-2-4",
+      "3-5-2", "5-4-1", "4-5-1", "3-4-3", "5-3-2"
+    ];
+    const apiKey = process.env.OPENROUTER_KEY;
+
+    if (!apiKey) return res.status(500).json({ error: "OPENROUTER_KEY ausente" });
+
+    console.log("📸 Imagem recebida, enviando para análise Vision...");
+
+    // =====================================
+    // ✅ AQUI: DEPOIS do JSON.parse
+    // =====================================
+    
+    let formationMilan = null;
+
+    // Se a visão retornou formação, captura
+    if (parsed) {
+      formationMilan =
+        parsed?.formationMilan ??
+        parsed?.formation_palmeiras ??
+        null;
+    }
+
+    // 2) calcula DEF/MID/ATT por terços (fallback geométrico)
+    const { def, mid, att } = classifyByThird(green);
+    const formationThirds = detectFormationByThirds(def, mid, att);
+
+    console.log(`📊 TERÇOS: DEF:${def} MID:${mid} ATT:${att} => ${formationThirds}`);
+    
+    // 3) fallback geométrico se visão não detectar ou retornar UNKNOWN
+    if (!formationMilan || formationMilan === "UNKNOWN") {
+      formationMilan = formationThirds;
+    }
+
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen2.5-vl-32b-instruct",
+        messages: [
+          {
+            role: "system",
+            content:  `
+Você é um analista tático. "Soccer's Scout analyst" Analise APENAS o time PRETO (adversário) na imagem. 
+Ignore o time VERMELHO (Milan) para a formação do adversário.
+
+LEGENDA DA IMAGEM:
+- Círculos PRETOS = adversário
+- Círculos VERMELHOS = Milan
+- Círculo BRANCO pequeno = bola
+- Dimensão do campo: 600x300
+
+CONDIÇÕES:
+- O adversário (preto) DEFENDE à ESQUERDA e ATACA da ESQUERDA para a DIREITA.
+- NÃO conte o goleiro na formação (apenas linhas de linha/linha/linha).
+- Use SOMENTE estas formações para o adversário:
+  "4-4-2", "4-3-3", "4-2-3-1", "4-2-4", "3-5-2", "5-4-1", "4-5-1", "3-4-3", "5-3-2".
+- Se estiver incerto, escolha a mais provável entre as listas acima (nada fora dessa lista).
+- Retorne APENAS JSON puro, sem texto extra.
+
+FORMATO EXATO:
+{
+  "formationOpponent": "4-4-2",
+  "formationMilan": "4-3-3",
+  "phase": "ataque" | "defesa" | "transicao",
+  "comment": "texto mediano"
+}
+`
+          },
+          {
+            role: "user",
+  content: [
+    { type: "text", text: `A posse é do time ${possession}.` },
+    { type: "text", text: `Coordenadas normalizadas (600x300): adversário(preto)=${JSON.stringify(black)}, milan(vermelho)=${JSON.stringify(green)}, bola=${JSON.stringify(ball)}.` },
+    { type: "text", text: `Analise a FORMAÇÃO APENAS do time preto com base nas posições e na imagem.` },
+    { type: "input_image", image_data: fieldImage }
+  ]
+          }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    console.log("📦 Resposta Vision:", JSON.stringify(data, null, 2));
+
+let parsed = null;
+
+try {
+  const raw = data?.choices?.[0]?.message?.content;
+
+  if (!raw) {
+    console.log("❌ Vision não retornou conteúdo.");
+    return res.json({
+      error: "Falha na análise visual: sem conteúdo",
+      opponentFormation: null
+    });
+  }
+
+  parsed = JSON.parse(raw);
+
+} catch (err) {
+  console.log("❌ Vision retornou algo inválido / não JSON:", data);
+  return res.json({
+    error: "Falha na análise visual: JSON inválido",
+    opponentFormation: null
+  });
+}
+
+
+console.log("🧠 Visão interpretou:", parsed);
+
+// ✅ Aceita camelCase e snake_case enviados pela Vision
+let formationOpponent =
+  parsed?.formationOpponent ??
+  parsed?.formation_opponent ??
+  null;
+
+// ✅ Valida formação detectada
+if (!allowedFormations.includes(formationOpponent)) {
+  console.log("⚠️ Vision não reconheceu formação, usando detector geométrico.");
+  const blackPlayers = Array.isArray(black) ? black : [];
+  formationOpponent = detectOpponentFormationAdvanced(blackPlayers) ?? "4-4-2";
+}
+
+const phase = parsed?.phase ?? "defesa";
+
+// Move o Palmeiras no campo usando a sua formação
+const { greenAI } = buildGreenFromFormation(
+  formationMilan,
+  ball,
+  phase === "ataque" ? "ataque" : "defesa"
+);
+
+// ✅ Checa bloco defensivo de emergência
+const emergency = emergencyBlockIfUnderPressure(ball, black);
+if (emergency) {
+  return res.json({
+    opponentFormation,
+    detectedFormation: formationMilan,  // agora existe
+    phase: "defesa",
+    bloco: "BAIXO",
+    compactacao: "ULTRA",
+    green: emergency,
+    coachComment: "Calma! Fechamos duas linhas de três dentro da área! Marca o homem e protege o gol!"
+  });
+}
+
+// ✅ Resposta final para o frontend
+return res.json({
+  opponentFormation: formationOpponent,
+  detectedFormation: formationMilan,
+  phase: parsed?.phase ?? "defesa",
+  green: greenAI,
+  coachComment: parsed?.comment || ""
+});
+
+  } catch (err) {
+    console.error("❌ Erro /ai/vision-tactic:", err);
+    res.status(500).json({ error: "Falha na análise visual", details: err.message });
+  }
+});
+
+
+
+// === Socket.IO realtime ===
 io.on("connection", (socket) => {
-  console.log("🔌 Novo cliente conectado:", socket.id);
+  console.log(`🔌 Cliente conectado: ${socket.id}`);
 
-  // envia paths existentes ao novo cliente
-  if (recentPaths.length) socket.emit("existing_paths", recentPaths);
-
-  // --- Movimento dos jogadores ---
   socket.on("player-move", (data) => socket.broadcast.emit("player-move", data));
   socket.on("ball-move", (data) => socket.broadcast.emit("ball-move", data));
+  socket.on("path_draw", (data) => socket.broadcast.emit("path_draw", data));
 
-  // --- Desenho parcial (em tempo real) ---
-  socket.on("path_draw_partial", (payload) => {
-    try {
-      if (!payload || !Array.isArray(payload.segment) || payload.segment.length < 1) return;
-      const segment = payload.segment.slice(-200);
-      const out = {
-        id: socket.id,
-        segment,
-        color: payload.color || "#ff3333",
-        ts: Date.now(),
-        last: !!payload.last,
-      };
-      socket.broadcast.emit("path_draw_partial", out);
-    } catch (e) {
-      console.warn("[PATH_DRAW_PARTIAL]", e.message);
-    }
-  });
-
-  // --- Desenho final (persistente) ---
-  socket.on("path_draw", (payload) => {
-    try {
-      if (!payload || !Array.isArray(payload.path) || payload.path.length < 2) return;
-      const item = {
-        id: socket.id,
-        path: payload.path.slice(0, 1000),
-        color: payload.color || "#ff3333",
-        ts: Date.now(),
-      };
-      recentPaths.push(item);
-      if (recentPaths.length > MAX_STORED_PATHS) recentPaths.shift();
-      socket.broadcast.emit("path_draw", item);
-    } catch (e) {
-      console.warn("[PATH_DRAW]", e.message);
-    }
-  });
-
-  // --- Limpeza do campo (canvas clear) ---
-  socket.on("path_clear", () => {
-    recentPaths.length = 0;
-    io.emit("path_clear");
-  });
-
-  socket.on("disconnect", () => {
-    console.log("❌ Cliente desconectado:", socket.id);
-  });
+  socket.on("disconnect", () => console.log(`❌ Cliente saiu: ${socket.id}`));
 });
 
-// === Inicialização do Servidor ===
+// === Endpoint de chat do Massimiliano Allegri (usando OpenRouter) ===
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message } = req.body;
+    const apiKey = process.env.OPENROUTER_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "OPENROUTER_KEY ausente no servidor" });
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Tu sei Massimiliano Allegri, allenatore del Milan. Comunichi con intensità, fermezza e pragmatismo. Ogni decisione è guidata da disciplina tattica, organizzazione difensiva e gestione intelligente dei ritmi della partita. Parli in modo diretto, chiaro e strategico. Metti l’accento su compattezza tra i reparti, equilibrio e transizioni rapide ed efficaci. Esigi concentrazione totale, responsabilità tattica e mentalità vincente da ogni giocatore in campo." },
+          { role: "user", content: message }
+        ],
+        temperature: 0.8,
+        max_tokens: 180
+      })
+    });
+
+    const data = await response.json();
+    const reply = data?.choices?.[0]?.message?.content || "O Allegri ficou em silêncio...";
+
+    // --- Detecta pedido de mudança de formação no texto do usuário ---
+    function extractFormation(text) {
+    const formationRegex = /\b(4-4-2|4-3-3|4-2-3-1|3-5-2|5-4-1|4-5-1|4-2-4|3-4-3|5-3-2)\b/gi;
+    const match = text.match(formationRegex);
+    return match ? match[0] : null;
+    }
+
+    const requestedFormation = extractFormation(message);
+    res.json({ reply, formationRequested: requestedFormation || null });
+
+  } catch (err) {
+    console.error("Erro no /api/chat:", err);
+    res.status(500).json({ error: "Falha na comunicação com o ", details: err.message });
+  }
+});
+
+
+// === Inicializa Render ===
 const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Tactical Squad Scout 4.2.3 - LiveSync rodando na porta ${PORT}`);
-});
-
+httpServer.listen(PORT, () => console.log(`✅ AI TÁTICA v12.1.2 + Realtime rodando na porta ${PORT}`));
