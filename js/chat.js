@@ -68,6 +68,7 @@ chatSend.addEventListener("click", async ()=>{
     // ✅ Se o Allegri, retornou uma formação, aciona IA Tática
     if (data.formationRequested){
       console.log("⚽ Comando tático do chat:", data.formationRequested);
+      window.dispatchEvent(new CustomEvent("coach:help-requested"));
 
 fetch(`${url_render}/ai/analyze`, {
     method: "POST",

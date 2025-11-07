@@ -801,7 +801,6 @@ return res.json({
 });
 
 
-
 // === Socket.IO realtime ===
 io.on("connection", (socket) => {
   console.log(`🔌 Cliente conectado: ${socket.id}`);
@@ -857,6 +856,109 @@ app.post("/api/chat", async (req, res) => {
     console.error("Erro no /api/chat:", err);
     res.status(500).json({ error: "Falha na comunicação com o ", details: err.message });
   }
+});
+
+// ===============================================
+// ✅ SISTEMA DE RANKING (em memória por enquanto)
+// ===============================================
+
+const rankingStore = []; // { name, email, hash, points, goals, ts }
+
+// Função simples pra "hash" da senha (base64 só para demo)
+function hashPass(s) {
+  return Buffer.from(s).toString("base64");
+}
+
+// Verifica se a pontuação está dentro do período solicitado
+function isWithinRange(timestamp, range) {
+  const now = new Date();
+
+  if (range === "daily") {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return timestamp >= start.getTime();
+  }
+
+  if (range === "weekly") {
+    const first = now.getDate() - now.getDay() + 1; // 2a feira
+    const start = new Date(now.getFullYear(), now.getMonth(), first);
+    return timestamp >= start.getTime();
+  }
+
+  if (range === "monthly") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return timestamp >= start.getTime();
+  }
+
+  return true;
+}
+
+/**
+ * ✅ Salva pontuação no ranking
+ * Body esperado:
+ * {
+ *   name: "Fulano",
+ *   email: "a@b.com",
+ *   pass: "123",
+ *   points: 12,
+ *   goals: 7
+ * }
+ */
+app.post("/ranking/score", (req, res) => {
+  const { name, email, pass, points, goals } = req.body;
+
+  if (!name || !email || !pass) {
+    return res.status(400).json({ error: "Nome, email e senha são obrigatórios." });
+  }
+
+  const hash = hashPass(pass);
+
+  let user = rankingStore.find(u => u.email === email);
+
+  if (!user) {
+    // cria novo
+    user = {
+      name,
+      email,
+      hash,
+      points: Number(points || 0),
+      goals: Number(goals || 0),
+      ts: Date.now()
+    };
+    rankingStore.push(user);
+  } else {
+    // usuário já existe → verifica senha
+    if (user.hash !== hash) {
+      return res.status(403).json({ error: "Senha incorreta para este usuário" });
+    }
+
+    // permite atualizar nome + pontuação
+    user.name = name;
+    user.points = Number(points || 0);
+    user.goals = Number(goals || 0);
+    user.ts = Date.now();
+  }
+
+  res.json({ ok: true });
+});
+
+/**
+ * ✅ Lista ranking
+ * GET /ranking?range=daily
+ * GET /ranking?range=weekly
+ * GET /ranking?range=monthly
+ */
+app.get("/ranking", (req, res) => {
+  const range = req.query.range || "daily";
+
+  const filtered = rankingStore
+    .filter(user => isWithinRange(user.ts, range))
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return b.goals - a.goals;
+    })
+    .slice(0, 50); // limite (top 50)
+
+  res.json({ top: filtered });
 });
 
 

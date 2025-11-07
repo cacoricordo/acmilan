@@ -307,7 +307,7 @@ async function sendVisionTactic() {
     console.log("📸 Enviando imagem do campo para análise visual...");
     console.log("🖼️ fieldImage:", fieldImage.substring(0, 100));
 
-    const green = getPalmeirasPositions();
+    const green = getMilanPositions();
     const black = getOpponentPositions();
 
     const res = await fetch("https://acmilan-5qt5.onrender.com/ai/vision-tactic", {

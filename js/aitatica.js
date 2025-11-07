@@ -252,13 +252,17 @@ function getCurrentPossession() {
     hudBox.style.opacity = "1";
 
     // === Movimenta o para a nova formação sugerida pela IA Vision ===
-if (data.green) {
-  animateTeam("circle", data.green, () => {
+    if (data.green) {
+      animateTeam("circle", data.green, () => {
     if (data.phase && data.opponentFormation) {
       applyDynamicBlocks(data.green, (data.phase || "").toLowerCase(), data.opponentFormation);
+        }
+      });
     }
-  });
-}
+    
+    try {
+      window.dispatchEvent(new CustomEvent("ia:analyze:done", { detail: data }));
+    } catch(e) { console.warn("ia:analyze:done dispatch falhou", e); }
 
     // === Exibe o comentário do Allegri, ===
     if (data.coachComment) {

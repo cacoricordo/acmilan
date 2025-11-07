@@ -86,33 +86,78 @@
 
   <div id="ai-notification" style="display:none;position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:#33aaff;color:#fff;padding:18px 32px;border-radius:8px;z-index:10001;font-size:1.1em;box-shadow:0 2px 10px rgba(0,0,0,0.18);"></div>
 
-  <!-- Botões -->
-  <div id="fullscreen-overlay" style="position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);color:#fff;display:flex;align-items:center;justify-content:center;z-index:9999;font-size:2em;cursor:pointer;z-index:10055">
-    Toque para entrar na Mesa Tática
-  </div>
+<!-- Botões -->
+<div id="fullscreen-overlay"
+  style="position:fixed;left:0;top:0;width:100vw;height:100vh;
+         background:rgba(0,0,0,0.7);color:#fff;display:flex;
+         align-items:center;justify-content:center;z-index:10055;
+         font-size:2em;cursor:pointer;">
+  Toque para entrar na Mesa Tática
+</div>
 
-  <button id="exit-fullscreen-btn" style="position:fixed;top:330px;left:250px;z-index:10000;">Sair (x)</button>
-  <button id="ai-analise-btn" style="position:fixed;top:330px;left:20px;z-index:10000;">Análise IA</button>
-  <button id="pen-path-btn" style="position:fixed;top:330px;left:120px;z-index:10000;">✎ Desenho Tático</button>
- 
+<button id="exit-fullscreen-btn"
+  style="position:fixed;top:330px;left:330px;z-index:10000;
+         font-size:0.9em;padding:10px 18px;border-radius:8px;
+         background:#222;color:#fff;border:none;cursor:pointer;
+         box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+  Sair (x)
+</button>
+
+<button id="ai-analise-btn"
+  style="position:fixed;top:330px;left:180px;z-index:10000;
+         font-size:0.9em;padding:10px 18px;border-radius:8px;
+         background:#1E90FF;color:#fff;border:none;cursor:pointer;
+         box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+  Análise IA
+</button>
+
+<button id="pen-path-btn"
+  style="position:fixed;top:330px;left:20px;z-index:10000;
+         font-size:0.9em;padding:10px 18px;border-radius:8px;
+         background:#222;color:#fff;border:none;cursor:pointer;
+         box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+  ✎ Desenho Tático
+</button>
+
+<button id="treino-btn"
+  style="position:fixed;top:330px;left:420px;z-index:10000;
+         font-size:0.9em;padding:10px 18px;border-radius:8px;
+         background:#28a745;color:#fff;border:none;cursor:pointer;
+         box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+  🏋️ Treino
+</button>
+
+
 <a href="https://api.whatsapp.com/send?text=Check%20this%20out:%20https://www.osinvictos.com.br/dashboard/acmilan/"
    target="_blank"
    style="text-decoration:none;">
-  <button style="position:fixed;top:360px;left:20px;z-index:10000;">
+  <button
+    style="position:fixed;top:370px;left:20px;z-index:10000;
+           font-size:0.9em;padding:10px 18px;border-radius:8px;
+           background:#222;color:#fff;border:none;cursor:pointer;
+           box-shadow:0 2px 6px rgba(0,0,0,0.15);">
     Convide via WhatsApp
   </button>
 </a>
+
 <a href="https://www.facebook.com/sharer/sharer.php?u=https://www.osinvictos.com.br/dashboard/acmilan/"
    target="_blank"
    style="text-decoration:none;">
-  <button style="position:fixed;top:360px;left:190px;z-index:10000;">
+  <button
+    style="position:fixed;top:370px;left:220px;z-index:10000;
+           font-size:0.9em;padding:10px 18px;border-radius:8px;
+           background:#222;color:#fff;border:none;cursor:pointer;
+           box-shadow:0 2px 6px rgba(0,0,0,0.15);">
     Interagir em Tempo-Real!
   </button>
 </a>
+
 <script src="js/core.js"></script> 
 <script src="js/aitatica.js"></script>
 <script src="js/fullscreen.js"></script>
 <script src="js/desenhotatico.js"></script>
+
+
 <!-- === Chat do Treinador Massimiliano Allegri=== -->
 <div id="chat-container" style="
   position:fixed;bottom:20px;right:50px;width:300px;height:70vh;
@@ -184,6 +229,55 @@
   <span id="hud-block">Bloco: ? | Compactação: ?</span>
 </div>
 
+<!-- SCORE HUD -->
+<div id="score-hud" style="position:fixed;top:20px;right:20px;z-index:10050;display:flex;gap:10px;align-items:center;">
+  
+  <!-- ⭐ Pontos -->
+  <button id="star-points" style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.7);color:#ffd700;border:1px solid rgba(255,255,255,0.2);padding:6px 10px;border-radius:10px;cursor:pointer;">
+    ⭐ <span id="points-value" style="color:#ffd700;font-weight:700;">0</span>
+  </button>
+
+  <!-- ✨ Gols pró -->
+  <div style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.7);color:#c0c0c0;border:1px solid rgba(255,255,255,0.2);padding:6px 10px;border-radius:10px;">
+    ✨ <span id="goals-value" style="color:#c0c0c0;font-weight:700;">0</span>
+  </div>
+
+</div>
+
+<div id="ranking-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10060;
+  align-items:center;justify-content:center;">
+  <div style="width:min(92vw,560px);background:#121212;color:#fff;border:1px solid #333;border-radius:12px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.4);padding:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h3 style="margin:0;font-size:18px;">🏆 Ranking Invicto</h3>
+      <button id="ranking-close" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="background:#1e1e1e;padding:12px;border-radius:10px;">
+        <h4 style="margin:0 0 8px 0;font-size:14px;">Cadastrar/Entrar</h4>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <input id="rk-name" type="text" placeholder="Seu nome" style="padding:8px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;">
+          <input id="rk-email" type="email" placeholder="Seu e-mail" style="padding:8px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;">
+          <input id="rk-pass" type="password" placeholder="Senha" style="padding:8px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;">
+          <button id="rk-save" style="background:#28a745;border:none;border-radius:8px;padding:10px;color:#fff;cursor:pointer;">
+            Salvar/Atualizar Pontuação
+          </button>
+        </div>
+      </div>
+      <div style="background:#1e1e1e;padding:12px;border-radius:10px;">
+        <h4 style="margin:0 0 8px 0;font-size:14px;">Tabela</h4>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="rk-tab" data-range="daily"  style="flex:1;background:#222;border:1px solid #333;color:#fff;border-radius:8px;padding:6px;cursor:pointer;">Diário</button>
+          <button class="rk-tab" data-range="weekly" style="flex:1;background:#222;border:1px solid #333;color:#fff;border-radius:8px;padding:6px;cursor:pointer;">Semanal</button>
+          <button class="rk-tab" data-range="monthly" style="flex:1;background:#222;border:1px solid #333;color:#fff;border-radius:8px;padding:6px;cursor:pointer;">Mensal</button>
+        </div>
+        <div id="rk-list" style="max-height:240px;overflow:auto;font-size:13px;line-height:1.5;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== POPUP INVICTO ===== -->
 <div id="popup-invicto">
   <button id="close-popup-invicto">×</button>
@@ -212,6 +306,6 @@
   <span id="invicto-notify"></span>
 </div>
 
-
+<script src="js/treino.js"></script>
 </body>
 </html>
